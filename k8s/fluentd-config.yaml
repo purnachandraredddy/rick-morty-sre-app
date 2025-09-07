@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: rick-morty-app
+  labels:
+    app.kubernetes.io/name: rick-morty-app
+    app.kubernetes.io/component: logging
+data:
+  fluent.conf: |
+    <source>
+      @type tail
+      path /var/log/app/*.log
+      pos_file /var/log/fluentd-app.log.pos
+      tag app.logs
+      format json
+      time_format %Y-%m-%dT%H:%M:%S.%NZ
+      time_key timestamp
+      keep_time_key true
+    </source>
+
+    <filter app.logs>
+      @type record_transformer
+      <record>
+        hostname "#{Socket.gethostname}"
+        namespace rick-morty-app
+        app rick-morty-app
+      </record>
+    </filter>
+
+    <match app.logs>
+      @type forward
+      <server>
+        name elasticsearch
+        host elasticsearch
+        port 24224
+        weight 60
+      </server>
+      <buffer>
+        @type file
+        path /var/log/fluentd-buffers/app.buffer
+        flush_mode interval
+        retry_type exponential_backoff
+        flush_thread_count 2
+        flush_interval 5s
+        retry_forever
+        retry_max_interval 30
+        chunk_limit_size 2M
+        queue_limit_length 8
+        overflow_action block
+      </buffer>
+    </match>

@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rick-morty-app-config
+  namespace: rick-morty-app
+  labels:
+    app.kubernetes.io/name: rick-morty-app
+    app.kubernetes.io/component: config
+data:
+  APP_NAME: "Rick and Morty SRE App"
+  APP_VERSION: "1.0.0"
+  LOG_LEVEL: "INFO"
+  LOG_FORMAT: "json"
+  RICK_MORTY_API_URL: "https://rickandmortyapi.com/api"
+  RICK_MORTY_TIMEOUT: "30"
+  RICK_MORTY_MAX_RETRIES: "3"
+  RICK_MORTY_BACKOFF_FACTOR: "0.3"
+  DATABASE_POOL_SIZE: "5"
+  DATABASE_MAX_OVERFLOW: "10"
+  DATABASE_POOL_TIMEOUT: "30"
+  CACHE_TTL: "3600"
+  CACHE_PREFIX: "rickmorty:"
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW: "60"
+  METRICS_ENABLED: "true"
+  TRACING_ENABLED: "true"

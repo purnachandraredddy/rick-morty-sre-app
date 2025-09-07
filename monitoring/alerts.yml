@@ -1,0 +1,224 @@
+# Prometheus alerting rules for Rick and Morty SRE Application
+groups:
+  - name: rick-morty-app.rules
+    rules:
+      # High Error Rate Alert
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{job="rick-morty-app",status_code=~"5.."}[5m]) /
+            rate(http_requests_total{job="rick-morty-app"}[5m])
+          ) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: rick-morty-app
+        annotations:
+          summary: "High error rate detected for Rick and Morty API"
+          description: |
+            Error rate is {{ $value }}% for the last 5 minutes.
+            This indicates potential issues with the application or dependencies.
+            
+            Runbook: Check application logs, database connectivity, and external API status.
+            
+            Dashboard: http://grafana.example.com/d/rick-morty-app
+          
+      # High Latency Alert  
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(http_request_duration_seconds_bucket{job="rick-morty-app"}[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "High response latency detected"
+          description: |
+            95th percentile latency is {{ $value }}s for the last 5 minutes.
+            This may indicate performance degradation.
+            
+            Runbook: Check database performance, cache hit rates, and resource utilization.
+            
+            Dashboard: http://grafana.example.com/d/rick-morty-app
+
+      # Pod Crash Loop Alert
+      - alert: PodCrashLoop
+        expr: |
+          increase(kube_pod_container_status_restarts_total{
+            namespace="rick-morty-app",
+            container="rick-morty-app"
+          }[10m]) > 3
+        for: 0m
+        labels:
+          severity: critical
+          service: rick-morty-app
+        annotations:
+          summary: "Pod is crash looping"
+          description: |
+            Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 10 minutes.
+            This indicates a critical application issue.
+            
+            Runbook: Check pod logs, resource limits, and application configuration.
+            
+            Command: kubectl logs -n {{ $labels.namespace }} {{ $labels.pod }} --previous
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionIssues
+        expr: |
+          database_connections_active{job="rick-morty-app"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: rick-morty-app
+        annotations:
+          summary: "No active database connections"
+          description: |
+            The application has no active database connections for the last 2 minutes.
+            This will cause all database operations to fail.
+            
+            Runbook: Check database availability, connection strings, and network connectivity.
+
+      # Low Cache Hit Rate
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            rate(cache_hits_total{job="rick-morty-app"}[10m]) /
+            (rate(cache_hits_total{job="rick-morty-app"}[10m]) + 
+             rate(cache_misses_total{job="rick-morty-app"}[10m]))
+          ) * 100 < 70
+        for: 10m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "Low cache hit rate detected"
+          description: |
+            Cache hit rate is {{ $value }}% for the last 10 minutes.
+            This may indicate cache issues or increased load.
+            
+            Runbook: Check Redis connectivity, cache configuration, and TTL settings.
+
+      # Rick and Morty API Issues
+      - alert: RickMortyAPIDown
+        expr: |
+          rate(rick_morty_api_errors_total{job="rick-morty-app"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "Rick and Morty API experiencing issues"
+          description: |
+            High error rate ({{ $value }} errors/sec) when calling Rick and Morty API.
+            This may affect data synchronization.
+            
+            Runbook: Check external API status and implement circuit breaker if needed.
+
+      # High Memory Usage
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            container_memory_usage_bytes{
+              namespace="rick-morty-app",
+              container="rick-morty-app"
+            } /
+            container_spec_memory_limit_bytes{
+              namespace="rick-morty-app", 
+              container="rick-morty-app"
+            }
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "High memory usage detected"
+          description: |
+            Memory usage is {{ $value }}% of the limit for pod {{ $labels.pod }}.
+            This may lead to OOM kills.
+            
+            Runbook: Check for memory leaks, increase resource limits, or scale horizontally.
+
+      # High CPU Usage
+      - alert: HighCPUUsage
+        expr: |
+          (
+            rate(container_cpu_usage_seconds_total{
+              namespace="rick-morty-app",
+              container="rick-morty-app"
+            }[5m]) /
+            container_spec_cpu_quota{
+              namespace="rick-morty-app",
+              container="rick-morty-app"
+            } * container_spec_cpu_period{
+              namespace="rick-morty-app",
+              container="rick-morty-app"
+            }
+          ) * 100 > 90
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "High CPU usage detected"
+          description: |
+            CPU usage is {{ $value }}% of the limit for pod {{ $labels.pod }}.
+            This may cause performance degradation.
+            
+            Runbook: Check for CPU-intensive operations, optimize code, or scale horizontally.
+
+      # Service Down
+      - alert: ServiceDown
+        expr: |
+          up{job="rick-morty-app"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: rick-morty-app
+        annotations:
+          summary: "Rick and Morty service is down"
+          description: |
+            The Rick and Morty service has been down for more than 1 minute.
+            
+            Runbook: Check pod status, service configuration, and ingress settings.
+            
+            Commands:
+            - kubectl get pods -n rick-morty-app
+            - kubectl describe service rick-morty-app -n rick-morty-app
+
+      # Disk Space Warning
+      - alert: HighDiskUsage
+        expr: |
+          (
+            (node_filesystem_size_bytes{mountpoint="/"} - node_filesystem_free_bytes{mountpoint="/"}) /
+            node_filesystem_size_bytes{mountpoint="/"}
+          ) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "High disk usage detected"
+          description: |
+            Disk usage is {{ $value }}% on {{ $labels.instance }}.
+            This may affect application performance and logging.
+            
+            Runbook: Clean up logs, temporary files, or expand disk space.
+
+      # Too Many Open Files
+      - alert: TooManyOpenFiles
+        expr: |
+          process_open_fds{job="rick-morty-app"} / process_max_fds{job="rick-morty-app"} * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          service: rick-morty-app
+        annotations:
+          summary: "High number of open file descriptors"
+          description: |
+            Open file descriptors usage is {{ $value }}% of the limit.
+            This may lead to "too many open files" errors.
+            
+            Runbook: Check for file descriptor leaks, increase limits, or restart the application.

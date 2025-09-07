@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rick-morty-app.fullname" . }}
+  labels:
+    {{- include "rick-morty-app.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "rick-morty-app.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "rick-morty-app.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "rick-morty-app.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8000"
+            - name: WORKERS
+              value: "1"
+            - name: APP_NAME
+              value: {{ .Values.config.appName | quote }}
+            - name: APP_VERSION
+              value: {{ .Values.config.appVersion | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            - name: LOG_FORMAT
+              value: {{ .Values.config.logFormat | quote }}
+            - name: RICK_MORTY_API_URL
+              value: {{ .Values.config.rickMortyApiUrl | quote }}
+            - name: RICK_MORTY_TIMEOUT
+              value: {{ .Values.config.rickMortyTimeout | quote }}
+            - name: RICK_MORTY_MAX_RETRIES
+              value: {{ .Values.config.rickMortyMaxRetries | quote }}
+            - name: RICK_MORTY_BACKOFF_FACTOR
+              value: {{ .Values.config.rickMortyBackoffFactor | quote }}
+            - name: DATABASE_POOL_SIZE
+              value: {{ .Values.config.databasePoolSize | quote }}
+            - name: DATABASE_MAX_OVERFLOW
+              value: {{ .Values.config.databaseMaxOverflow | quote }}
+            - name: DATABASE_POOL_TIMEOUT
+              value: {{ .Values.config.databasePoolTimeout | quote }}
+            - name: CACHE_TTL
+              value: {{ .Values.config.cacheTtl | quote }}
+            - name: CACHE_PREFIX
+              value: {{ .Values.config.cachePrefix | quote }}
+            - name: RATE_LIMIT_REQUESTS
+              value: {{ .Values.config.rateLimitRequests | quote }}
+            - name: RATE_LIMIT_WINDOW
+              value: {{ .Values.config.rateLimitWindow | quote }}
+            - name: METRICS_ENABLED
+              value: {{ .Values.config.metricsEnabled | quote }}
+            - name: TRACING_ENABLED
+              value: {{ .Values.config.tracingEnabled | quote }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rick-morty-app.fullname" . }}-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rick-morty-app.fullname" . }}-secrets
+                  key: redis-url
+            - name: JAEGER_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "rick-morty-app.fullname" . }}-secrets
+                  key: jaeger-endpoint
+          livenessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.liveness.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /healthcheck
+              port: http
+            initialDelaySeconds: {{ .Values.healthCheck.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthCheck.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.healthCheck.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.healthCheck.readiness.failureThreshold }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: logs
+              mountPath: /app/logs
+        {{- if .Values.sidecar.enabled }}
+        - name: fluentd
+          image: "{{ .Values.sidecar.fluentd.image.repository }}:{{ .Values.sidecar.fluentd.image.tag }}"
+          imagePullPolicy: {{ .Values.sidecar.fluentd.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.sidecar.fluentd.resources | nindent 12 }}
+          volumeMounts:
+            - name: logs
+              mountPath: /var/log/app
+            - name: fluentd-config
+              mountPath: /fluentd/etc
+          env:
+            - name: FLUENT_CONF
+              value: "fluent.conf"
+        {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}
+        {{- if .Values.sidecar.enabled }}
+        - name: fluentd-config
+          configMap:
+            name: {{ include "rick-morty-app.fullname" . }}-fluentd-config
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

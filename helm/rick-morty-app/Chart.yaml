@@ -1,0 +1,19 @@
+apiVersion: v2
+name: rick-morty-app
+description: A Helm chart for Rick and Morty SRE Application
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - rick-morty
+  - api
+  - sre
+  - microservice
+home: https://github.com/your-org/rick-morty-sre-app
+sources:
+  - https://github.com/your-org/rick-morty-sre-app
+maintainers:
+  - name: SRE Team
+    email: sre@example.com
+annotations:
+  category: Application

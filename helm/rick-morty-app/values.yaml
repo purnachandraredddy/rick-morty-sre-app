@@ -1,0 +1,194 @@
+# Default values for rick-morty-app
+replicaCount: 3
+
+image:
+  repository: rickmorty/sre-app
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "8000"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+  capabilities:
+    drop:
+    - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: rick-morty-api.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: rick-morty-app-tls
+      hosts:
+        - rick-morty-api.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations:
+  - key: "node.kubernetes.io/not-ready"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 300
+  - key: "node.kubernetes.io/unreachable"
+    operator: "Exists"
+    effect: "NoExecute"
+    tolerationSeconds: 300
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - rick-morty-app
+          topologyKey: kubernetes.io/hostname
+
+# Application configuration
+config:
+  appName: "Rick and Morty SRE App"
+  appVersion: "1.0.0"
+  logLevel: "INFO"
+  logFormat: "json"
+  rickMortyApiUrl: "https://rickandmortyapi.com/api"
+  rickMortyTimeout: 30
+  rickMortyMaxRetries: 3
+  rickMortyBackoffFactor: 0.3
+  databasePoolSize: 5
+  databaseMaxOverflow: 10
+  databasePoolTimeout: 30
+  cacheTtl: 3600
+  cachePrefix: "rickmorty:"
+  rateLimitRequests: 100
+  rateLimitWindow: 60
+  metricsEnabled: true
+  tracingEnabled: true
+
+# Secret configuration
+secrets:
+  # These should be overridden in production
+  databaseUrl: "postgresql+asyncpg://postgres:postgres@postgres:5432/rickmorty"
+  redisUrl: "redis://redis:6379/0"
+  jaegerEndpoint: "http://jaeger:14268/api/traces"
+
+# Sidecar configuration
+sidecar:
+  enabled: true
+  fluentd:
+    image:
+      repository: fluent/fluentd
+      tag: v1.16-debian-1
+      pullPolicy: IfNotPresent
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+
+# Health check configuration
+healthCheck:
+  liveness:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readiness:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+
+# PostgreSQL dependency (can be disabled if using external DB)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: postgres
+    username: postgres
+    password: postgres
+    database: rickmorty
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# Redis dependency (can be disabled if using external cache)
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
