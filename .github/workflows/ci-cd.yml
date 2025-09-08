@@ -1,5 +1,10 @@
 name: CI/CD Pipeline
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 on:
   push:
     branches: [ main, develop ]
@@ -101,7 +106,7 @@ jobs:
         name: codecov-umbrella
 
     - name: Upload test artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         name: test-reports
@@ -172,7 +177,7 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy scan results
-      uses: github/codeql-action/upload-sarif@v2
+      uses: github/codeql-action/upload-sarif@v3
       if: always()
       with:
         sarif_file: 'trivy-results.sarif'
@@ -300,18 +305,22 @@ jobs:
     name: Security Scanning
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
     - name: Run CodeQL Analysis
-      uses: github/codeql-action/init@v2
+      uses: github/codeql-action/init@v3
       with:
         languages: python
 
     - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v2
+      uses: github/codeql-action/analyze@v3
 
     - name: Run OWASP ZAP Baseline Scan
       if: github.event_name == 'pull_request'
