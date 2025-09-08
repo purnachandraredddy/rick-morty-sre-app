@@ -152,6 +152,33 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
 
+    - name: Install Syft and ORAS
+      run: |
+        # Install Syft
+        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+        # Install ORAS
+        curl -sSfL https://github.com/oras-project/oras/releases/latest/download/oras_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
+        # Make them executable
+        chmod +x /usr/local/bin/syft /usr/local/bin/oras
+        # Verify installation
+        syft --version
+        oras version
+
+    - name: Generate and push SBOM
+      env:
+        REGISTRY: ghcr.io
+        IMAGE_NAME: purnachandraredddy/akamai-project
+        ORAS_USER: purnachandraredddy
+        ORAS_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Generate SBOM
+        syft ghcr.io/purnachandraredddy/akamai-project:2694714ca717599b53a938de8a69fec8cca30911 --platform linux/amd64 -o spdx-json > sbom.spdx.json
+        
+        # Push SBOM to registry
+        oras push ghcr.io/purnachandraredddy/akamai-project:sbom-2694714ca717599b53a938de8a69fec8cca30911 \
+          --artifact-type application/spdx+json \
+          sbom.spdx.json:application/spdx+json
+
     - name: Build and push Docker image
       id: build
       uses: docker/build-push-action@v5
