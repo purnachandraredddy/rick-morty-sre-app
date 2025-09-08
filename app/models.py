@@ -6,8 +6,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import Column, DateTime, Integer, String, Text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
+from sqlalchemy.ext.declarative import DeclarativeMeta
 
-Base = declarative_base()
+Base: DeclarativeMeta = declarative_base()
 
 
 class Character(Base):

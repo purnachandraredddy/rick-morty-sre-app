@@ -1,7 +1,7 @@
 """Business logic services."""
 import json
 from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import structlog
 from sqlalchemy import asc, desc, func, select
@@ -251,14 +251,14 @@ class CharacterService:
                 Character.species, func.count(Character.id)
             ).group_by(Character.species)
             species_result = await db.execute(species_query)
-            species_counts = dict(species_result.all())
+            species_counts: Dict[str, int] = dict(species_result.all())
 
             # Count by status
             status_query = select(Character.status, func.count(Character.id)).group_by(
                 Character.status
             )
             status_result = await db.execute(status_query)
-            status_counts = dict(status_result.all())
+            status_counts: Dict[str, int] = dict(status_result.all())
 
             # Most recent sync
             latest_query = select(func.max(Character.updated_at))

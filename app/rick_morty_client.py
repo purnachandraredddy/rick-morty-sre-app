@@ -1,5 +1,6 @@
 """Rick and Morty API client with retry logic and circuit breaker."""
 import asyncio
+import logging
 from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urljoin, urlparse
 
@@ -54,7 +55,7 @@ class RickMortyClient:
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=4, max=10),
         retry=retry_if_exception_type((httpx.RequestError, httpx.HTTPStatusError)),
-        before_sleep=before_sleep_log(logger, "warning"),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
     )
     async def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make HTTP request with retry logic and circuit breaker."""
@@ -110,7 +111,7 @@ class RickMortyClient:
         gender: Optional[str] = None,
     ) -> Dict:
         """Get characters with optional filters."""
-        params = {"page": page}
+        params: Dict[str, str | int] = {"page": page}
 
         if name:
             params["name"] = name
