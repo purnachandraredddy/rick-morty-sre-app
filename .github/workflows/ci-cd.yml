@@ -157,12 +157,10 @@ jobs:
 
     - name: Install ORAS
       run: |
-        VERSION="1.1.0"
-        curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
-        mkdir -p oras-install/
-        tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
-        sudo mv oras-install/oras /usr/local/bin/
-        rm -rf oras_${VERSION}_*.tar.gz oras-install/
+        curl -LO https://github.com/oras-project/oras/releases/latest/download/oras-linux-amd64.tar.gz
+        tar -zxvf oras-linux-amd64.tar.gz
+        sudo mv oras /usr/local/bin/oras
+        chmod +x /usr/local/bin/oras
         oras version
 
     - name: Login to GHCR for ORAS
