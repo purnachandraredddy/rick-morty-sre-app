@@ -1,7 +1,7 @@
 """Prometheus metrics for monitoring."""
 import time
 from functools import wraps
-from typing import Any, Callable
+from typing import Callable
 
 import structlog
 from prometheus_client import (
@@ -218,7 +218,7 @@ def track_cache_operation(operation: str):
                 cache_duration.labels(operation=operation).observe(duration)
                 cache_operations.labels(operation=operation, status=status).inc()
                 return result
-            except Exception as e:
+            except Exception:
                 status = "error"
                 duration = time.time() - start_time
                 cache_duration.labels(operation=operation).observe(duration)

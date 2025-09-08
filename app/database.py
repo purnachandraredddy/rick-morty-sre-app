@@ -1,5 +1,4 @@
 """Database connection and session management."""
-import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 

@@ -1,7 +1,7 @@
 """Redis cache management."""
 import json
 import pickle
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import redis.asyncio as redis
 import structlog
@@ -136,7 +136,7 @@ class CacheManager:
             if not self.redis_client:
                 return {"status": "disconnected", "error": "No Redis client"}
 
-            start_time = logger.info("Starting cache health check")
+            logger.info("Starting cache health check")
             await self.redis_client.ping()
             info = await self.redis_client.info()
 

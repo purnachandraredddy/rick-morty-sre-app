@@ -1,6 +1,5 @@
 """Rick and Morty API client with retry logic and circuit breaker."""
 import asyncio
-import json
 from typing import Dict, List, Optional
 from urllib.parse import parse_qs, urljoin, urlparse
 

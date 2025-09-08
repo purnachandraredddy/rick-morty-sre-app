@@ -2,7 +2,6 @@
 import asyncio
 from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import List, Optional
 
 import structlog
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
@@ -23,9 +22,12 @@ from app.metrics import (
     track_request_metrics,
     update_business_metrics,
 )
-from app.models import ErrorResponse, FilteredCharacterResponse, HealthCheckResponse
+from app.models import FilteredCharacterResponse, HealthCheckResponse
 from app.rick_morty_client import rick_morty_client
 from app.services import character_service
+
+# Removed unused imports
+
 
 # from app.tracing import setup_tracing  # Will add later when needed
 

@@ -33,7 +33,6 @@ def setup_tracing(app):
         )
 
         trace.set_tracer_provider(TracerProvider(resource=resource))
-        tracer = trace.get_tracer(__name__)
 
         # Configure Jaeger exporter if endpoint is provided
         if settings.jaeger_endpoint:

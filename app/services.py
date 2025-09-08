@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.cache import cache
 from app.models import Character, FilteredCharacterResponse
-from app.rick_morty_client import CharacterResponse, rick_morty_client
+from app.rick_morty_client import rick_morty_client
 
 logger = structlog.get_logger()
 
