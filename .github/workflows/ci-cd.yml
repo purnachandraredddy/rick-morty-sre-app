@@ -152,30 +152,27 @@ jobs:
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
 
-    - name: Install Syft and ORAS
+    - name: Install Syft
+      uses: anchore/sbom-action/download-syft@v0
+
+    - name: Install ORAS
       run: |
-        # Install Syft
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-        # Install ORAS
-        curl -sSfL https://github.com/oras-project/oras/releases/latest/download/oras_linux_amd64.tar.gz | tar -xz -C /usr/local/bin
-        # Make them executable
-        chmod +x /usr/local/bin/syft /usr/local/bin/oras
-        # Verify installation
-        syft --version
+        VERSION="1.1.0"
+        curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
+        mkdir -p oras-install/
+        tar -zxf oras_${VERSION}_*.tar.gz -C oras-install/
+        sudo mv oras-install/oras /usr/local/bin/
+        rm -rf oras_${VERSION}_*.tar.gz oras-install/
         oras version
 
-    - name: Generate and push SBOM
-      env:
-        REGISTRY: ghcr.io
-        IMAGE_NAME: purnachandraredddy/akamai-project
-        ORAS_USER: purnachandraredddy
-        ORAS_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+    - name: Login to GHCR for ORAS
       run: |
-        # Generate SBOM
-        syft ghcr.io/purnachandraredddy/akamai-project:2694714ca717599b53a938de8a69fec8cca30911 --platform linux/amd64 -o spdx-json > sbom.spdx.json
-        
-        # Push SBOM to registry
-        oras push ghcr.io/purnachandraredddy/akamai-project:sbom-2694714ca717599b53a938de8a69fec8cca30911 \
+        echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io -u ${{ github.actor }} --password-stdin
+
+    - name: Generate and Push SBOM
+      run: |
+        syft ghcr.io/${{ env.IMAGE_NAME }}:${{ github.sha }} -o spdx-json > sbom.spdx.json
+        oras push ghcr.io/${{ env.IMAGE_NAME }}:sbom-${{ github.sha }} \
           --artifact-type application/spdx+json \
           sbom.spdx.json:application/spdx+json
 
