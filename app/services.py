@@ -162,7 +162,7 @@ class CharacterService:
                 character_responses.append(response)
             
             # Cache the result
-            cache_data = ([char.dict() for char in character_responses], total)
+            cache_data = ([char.model_dump() for char in character_responses], total)
             await cache.set(cache_key, cache_data, ttl=300)  # Cache for 5 minutes
             
             logger.info(
@@ -211,7 +211,7 @@ class CharacterService:
             )
             
             # Cache the result
-            await cache.set(cache_key, response.dict(), ttl=3600)  # Cache for 1 hour
+            await cache.set(cache_key, response.model_dump(), ttl=3600)  # Cache for 1 hour
             
             logger.info("Retrieved character by ID", character_id=character_id)
             return response

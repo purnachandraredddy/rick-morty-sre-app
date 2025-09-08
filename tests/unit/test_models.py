@@ -63,7 +63,7 @@ class TestFilteredCharacterResponse:
         }
         
         response = FilteredCharacterResponse(**data)
-        result_dict = response.dict()
+        result_dict = response.model_dump()
         
         assert result_dict["id"] == 1
         assert result_dict["name"] == "Rick Sanchez"

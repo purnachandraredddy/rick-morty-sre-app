@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import Column, Integer, String, DateTime, Text
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 from pydantic import BaseModel, Field
 
@@ -63,8 +63,7 @@ class CharacterResponse(BaseModel):
     url: str
     created: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class CharacterListResponse(BaseModel):
@@ -85,8 +84,7 @@ class FilteredCharacterResponse(BaseModel):
     image_url: str
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
 
 
 class HealthCheckResponse(BaseModel):

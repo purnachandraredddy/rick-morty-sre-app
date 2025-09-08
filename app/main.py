@@ -284,7 +284,7 @@ async def get_characters(
         total_pages = (total + per_page - 1) // per_page
         
         return {
-            "characters": [char.dict() for char in characters],
+            "characters": [char.model_dump() for char in characters],
             "pagination": {
                 "page": page,
                 "per_page": per_page,
@@ -382,11 +382,12 @@ async def metrics():
     return Response(content=metrics_data, media_type=content_type)
 
 
-@app.exception_handler(404)
-async def not_found_handler(request: Request, exc):
-    """Custom 404 handler."""
-    logger.warning("Not found", path=request.url.path, method=request.method)
-    return JSONResponse(status_code=404, content={"detail": "Endpoint not found"})
+# Removed global 404 handler to allow specific endpoint 404 responses
+# @app.exception_handler(404)
+# async def not_found_handler(request: Request, exc):
+#     """Custom 404 handler."""
+#     logger.warning("Not found", path=request.url.path, method=request.method)
+#     return JSONResponse(status_code=404, content={"detail": "Endpoint not found"})
 
 
 @app.exception_handler(429)

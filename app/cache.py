@@ -40,7 +40,7 @@ class CacheManager:
         """Disconnect from Redis."""
         if self.redis_client:
             try:
-                await self.redis_client.close()
+                await self.redis_client.aclose()
                 self._connected = False
                 logger.info("Disconnected from Redis cache")
             except Exception as e:

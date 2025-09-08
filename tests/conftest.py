@@ -72,7 +72,17 @@ async def setup_database():
 async def db_session(setup_database):
     """Create a test database session."""
     async with TestAsyncSessionLocal() as session:
-        yield session
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            # Clean up all data after each test
+            async with test_engine.begin() as conn:
+                await conn.run_sync(Base.metadata.drop_all)
+                await conn.run_sync(Base.metadata.create_all)
 
 
 @pytest_asyncio.fixture
@@ -176,20 +186,24 @@ async def setup_cache():
     original_redis_url = settings.redis_url
     settings.redis_url = "redis://localhost:6379/15"  # Use test database
     
+    cache_connected = False
     try:
         await cache.connect()
+        cache_connected = True
     except Exception:
-        # Cache not available, skip cache tests
+        # Cache not available, disable cache for tests
+        cache._connected = False
         pass
     
     yield
     
     # Clean up
-    try:
-        await cache.clear_pattern("*")
-        await cache.disconnect()
-    except Exception:
-        pass
+    if cache_connected:
+        try:
+            await cache.clear_pattern("*")
+            await cache.disconnect()
+        except Exception:
+            pass
     
     # Restore original settings
     settings.redis_url = original_redis_url
