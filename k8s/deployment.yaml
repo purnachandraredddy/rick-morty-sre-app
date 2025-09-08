@@ -37,8 +37,8 @@ spec:
         fsGroup: 1000
       containers:
       - name: app
-        image: rickmorty/sre-app:latest
-        imagePullPolicy: Always
+        image: akamai-app:latest
+        imagePullPolicy: Never
         ports:
         - containerPort: 8000
           name: http

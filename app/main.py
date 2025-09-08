@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Request, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -30,6 +30,7 @@ from app.metrics import (
     characters_processed,
     api_sync_duration
 )
+# from app.tracing import setup_tracing  # Will add later when needed
 
 # Configure structured logging
 structlog.configure(
@@ -63,8 +64,12 @@ async def lifespan(app: FastAPI):
     
     # Startup
     try:
-        # Connect to cache
-        await cache.connect()
+        # Connect to cache (optional)
+        try:
+            await cache.connect()
+            logger.info("Cache connected successfully")
+        except Exception as e:
+            logger.warning("Cache connection failed, continuing without cache", error=str(e))
         
         # Create database tables
         await create_tables()
@@ -222,7 +227,7 @@ async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
     
     # Set appropriate HTTP status code
     if overall_status == "unhealthy":
-        raise HTTPException(status_code=503, detail=response.dict())
+        raise HTTPException(status_code=503, detail="Service unhealthy")
     
     return response
 
@@ -381,21 +386,21 @@ async def metrics():
 async def not_found_handler(request: Request, exc):
     """Custom 404 handler."""
     logger.warning("Not found", path=request.url.path, method=request.method)
-    return HTTPException(status_code=404, detail="Endpoint not found")
+    return JSONResponse(status_code=404, content={"detail": "Endpoint not found"})
 
 
 @app.exception_handler(429)
 async def rate_limit_handler(request: Request, exc):
     """Custom rate limit handler."""
     logger.warning("Rate limit exceeded", path=request.url.path, method=request.method)
-    return HTTPException(status_code=429, detail="Rate limit exceeded")
+    return JSONResponse(status_code=429, content={"detail": "Rate limit exceeded"})
 
 
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     """Custom 500 handler."""
     logger.error("Internal server error", path=request.url.path, method=request.method, error=str(exc))
-    return HTTPException(status_code=500, detail="Internal server error")
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 if __name__ == "__main__":

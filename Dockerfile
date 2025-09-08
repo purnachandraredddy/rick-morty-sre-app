@@ -50,8 +50,6 @@ WORKDIR /app
 
 # Copy application code
 COPY app/ ./app/
-COPY alembic/ ./alembic/ 2>/dev/null || true
-COPY alembic.ini ./alembic.ini 2>/dev/null || true
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs && \

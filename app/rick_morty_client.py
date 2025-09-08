@@ -58,7 +58,10 @@ class RickMortyClient:
     )
     async def _make_request(self, endpoint: str, params: Optional[Dict] = None) -> Dict:
         """Make HTTP request with retry logic and circuit breaker."""
-        url = urljoin(self.base_url, endpoint)
+        # Ensure base_url ends with / and endpoint doesn't start with /
+        base = self.base_url.rstrip('/') + '/'
+        endpoint = endpoint.lstrip('/')
+        url = urljoin(base, endpoint)
         
         try:
             logger.info("Making API request", url=url, params=params)
@@ -88,7 +91,7 @@ class RickMortyClient:
     async def get_character(self, character_id: int) -> Optional[CharacterResponse]:
         """Get a single character by ID."""
         try:
-            data = await self._make_request(f"/character/{character_id}")
+            data = await self._make_request(f"character/{character_id}")
             return CharacterResponse(**data)
         except RickMortyAPIError as e:
             logger.warning("Failed to get character", character_id=character_id, error=str(e))
@@ -114,7 +117,7 @@ class RickMortyClient:
         if gender:
             params["gender"] = gender
         
-        return await self._make_request("/character", params)
+        return await self._make_request("character", params)
     
     async def get_all_filtered_characters(self) -> List[CharacterResponse]:
         """
@@ -196,7 +199,7 @@ class RickMortyClient:
         """Check API health."""
         try:
             # Simple health check by getting character count
-            data = await self._make_request("/character")
+            data = await self._make_request("character")
             info = data.get("info", {})
             
             return {

@@ -11,15 +11,24 @@ from app.models import Base
 
 logger = structlog.get_logger()
 
-# Create async engine
-engine = create_async_engine(
-    settings.database_url,
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_max_overflow,
-    pool_timeout=settings.database_pool_timeout,
-    echo=settings.debug,
-    poolclass=StaticPool if "sqlite" in settings.database_url else None,
-)
+# Create async engine with conditional parameters
+if "sqlite" in settings.database_url:
+    # SQLite configuration
+    engine = create_async_engine(
+        settings.database_url,
+        echo=settings.debug,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
+else:
+    # PostgreSQL configuration  
+    engine = create_async_engine(
+        settings.database_url,
+        pool_size=settings.database_pool_size,
+        max_overflow=settings.database_max_overflow,
+        pool_timeout=settings.database_pool_timeout,
+        echo=settings.debug,
+    )
 
 # Create async session factory
 AsyncSessionLocal = async_sessionmaker(
@@ -75,8 +84,9 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def check_db_connection() -> bool:
     """Check database connection health."""
     try:
+        from sqlalchemy import text
         async with get_db_session() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
             return True
     except Exception as e:
         logger.error("Database health check failed", error=str(e))
