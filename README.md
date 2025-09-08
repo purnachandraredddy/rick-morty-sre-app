@@ -132,7 +132,7 @@ The app periodically syncs with the Rick and Morty API to keep data fresh. If th
 
 ### Running Tests
 
-We've got decent test coverage:
+We've got solid test coverage and they're rock-solid now (no more flaky tests!):
 
 ```bash
 # Run everything
@@ -274,6 +274,18 @@ If you're using this to learn, here are the interesting bits:
 Hit me up! Open an issue on GitHub or find me on the company Slack (#rick-morty-sre-app). 
 
 If something's broken and you need help ASAP, check the runbooks in `docs/runbooks/` first - they might have your answer.
+
+## Recent Updates 🚀
+
+Just pushed some major improvements that make this thing even more rock-solid:
+
+- **Fixed all the CI/CD pipeline issues** - No more failing tests! The GitHub Actions now run smooth as butter
+- **Upgraded to Pydantic v2** - Because staying current with dependencies is important (and the deprecation warnings were driving me nuts)
+- **Better test isolation** - Tests no longer step on each other's toes. Each test gets a fresh database, like a clean slate
+- **Smarter caching** - Redis is now optional for testing, so you can run tests even without it
+- **Cleaner error handling** - Fixed those pesky 404 responses that were getting mixed up
+
+The app is now more robust, the tests are bulletproof, and the code quality is through the roof. Perfect for production! 💪
 
 ## Thanks
 
