@@ -1,18 +1,18 @@
 """Test configuration and fixtures."""
 import asyncio
 import os
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
-from app.main import app
-from app.database import get_db
-from app.models import Base
-from app.config import settings
 from app.cache import cache
-
+from app.config import settings
+from app.database import get_db
+from app.main import app
+from app.models import Base
 
 # Test database URL
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
@@ -59,9 +59,9 @@ async def setup_database():
     # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     yield
-    
+
     # Clean up
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -90,10 +90,10 @@ async def client(setup_database):
     """Create test client."""
     # Override database dependency
     app.dependency_overrides[get_db] = override_get_db
-    
+
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac
-    
+
     # Clean up override
     app.dependency_overrides.clear()
 
@@ -106,7 +106,7 @@ def mock_rick_morty_data():
             "count": 826,
             "pages": 42,
             "next": "https://rickandmortyapi.com/api/character?page=2",
-            "prev": None
+            "prev": None,
         },
         "results": [
             {
@@ -118,19 +118,19 @@ def mock_rick_morty_data():
                 "gender": "Male",
                 "origin": {
                     "name": "Earth (C-137)",
-                    "url": "https://rickandmortyapi.com/api/location/1"
+                    "url": "https://rickandmortyapi.com/api/location/1",
                 },
                 "location": {
                     "name": "Citadel of Ricks",
-                    "url": "https://rickandmortyapi.com/api/location/3"
+                    "url": "https://rickandmortyapi.com/api/location/3",
                 },
                 "image": "https://rickandmortyapi.com/api/character/avatar/1.jpeg",
                 "episode": [
                     "https://rickandmortyapi.com/api/episode/1",
-                    "https://rickandmortyapi.com/api/episode/2"
+                    "https://rickandmortyapi.com/api/episode/2",
                 ],
                 "url": "https://rickandmortyapi.com/api/character/1",
-                "created": "2017-11-04T18:48:46.250Z"
+                "created": "2017-11-04T18:48:46.250Z",
             },
             {
                 "id": 2,
@@ -141,21 +141,21 @@ def mock_rick_morty_data():
                 "gender": "Male",
                 "origin": {
                     "name": "Earth (C-137)",
-                    "url": "https://rickandmortyapi.com/api/location/1"
+                    "url": "https://rickandmortyapi.com/api/location/1",
                 },
                 "location": {
                     "name": "Citadel of Ricks",
-                    "url": "https://rickandmortyapi.com/api/location/3"
+                    "url": "https://rickandmortyapi.com/api/location/3",
                 },
                 "image": "https://rickandmortyapi.com/api/character/avatar/2.jpeg",
                 "episode": [
                     "https://rickandmortyapi.com/api/episode/1",
-                    "https://rickandmortyapi.com/api/episode/2"
+                    "https://rickandmortyapi.com/api/episode/2",
                 ],
                 "url": "https://rickandmortyapi.com/api/character/2",
-                "created": "2017-11-04T18:50:21.651Z"
-            }
-        ]
+                "created": "2017-11-04T18:50:21.651Z",
+            },
+        ],
     }
 
 
@@ -185,7 +185,7 @@ async def setup_cache():
     # Use test cache settings
     original_redis_url = settings.redis_url
     settings.redis_url = "redis://localhost:6379/15"  # Use test database
-    
+
     cache_connected = False
     try:
         await cache.connect()
@@ -194,9 +194,9 @@ async def setup_cache():
         # Cache not available, disable cache for tests
         cache._connected = False
         pass
-    
+
     yield
-    
+
     # Clean up
     if cache_connected:
         try:
@@ -204,6 +204,6 @@ async def setup_cache():
             await cache.disconnect()
         except Exception:
             pass
-    
+
     # Restore original settings
     settings.redis_url = original_redis_url

@@ -2,6 +2,7 @@
 import json
 import pickle
 from typing import Any, Optional, Union
+
 import redis.asyncio as redis
 import structlog
 
@@ -12,11 +13,11 @@ logger = structlog.get_logger()
 
 class CacheManager:
     """Redis cache manager with async support."""
-    
+
     def __init__(self):
         self.redis_client: Optional[redis.Redis] = None
         self._connected = False
-    
+
     async def connect(self):
         """Connect to Redis."""
         try:
@@ -35,7 +36,7 @@ class CacheManager:
             logger.error("Failed to connect to Redis", error=str(e))
             self._connected = False
             raise
-    
+
     async def disconnect(self):
         """Disconnect from Redis."""
         if self.redis_client:
@@ -45,19 +46,19 @@ class CacheManager:
                 logger.info("Disconnected from Redis cache")
             except Exception as e:
                 logger.error("Error disconnecting from Redis", error=str(e))
-    
+
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache."""
         if not self._connected or not self.redis_client:
             return None
-        
+
         try:
             full_key = f"{settings.cache_prefix}{key}"
             data = await self.redis_client.get(full_key)
             if data:
                 try:
                     # Try JSON first (for simple data)
-                    return json.loads(data.decode('utf-8'))
+                    return json.loads(data.decode("utf-8"))
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     # Fall back to pickle for complex objects
                     return pickle.loads(data)
@@ -65,39 +66,34 @@ class CacheManager:
         except Exception as e:
             logger.warning("Cache get failed", key=key, error=str(e))
             return None
-    
-    async def set(
-        self, 
-        key: str, 
-        value: Any, 
-        ttl: Optional[int] = None
-    ) -> bool:
+
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """Set value in cache."""
         if not self._connected or not self.redis_client:
             return False
-        
+
         try:
             full_key = f"{settings.cache_prefix}{key}"
             ttl = ttl or settings.cache_ttl
-            
+
             # Try to serialize as JSON first
             try:
-                data = json.dumps(value, default=str).encode('utf-8')
+                data = json.dumps(value, default=str).encode("utf-8")
             except (TypeError, ValueError):
                 # Fall back to pickle for complex objects
                 data = pickle.dumps(value)
-            
+
             await self.redis_client.setex(full_key, ttl, data)
             return True
         except Exception as e:
             logger.warning("Cache set failed", key=key, error=str(e))
             return False
-    
+
     async def delete(self, key: str) -> bool:
         """Delete key from cache."""
         if not self._connected or not self.redis_client:
             return False
-        
+
         try:
             full_key = f"{settings.cache_prefix}{key}"
             result = await self.redis_client.delete(full_key)
@@ -105,12 +101,12 @@ class CacheManager:
         except Exception as e:
             logger.warning("Cache delete failed", key=key, error=str(e))
             return False
-    
+
     async def exists(self, key: str) -> bool:
         """Check if key exists in cache."""
         if not self._connected or not self.redis_client:
             return False
-        
+
         try:
             full_key = f"{settings.cache_prefix}{key}"
             result = await self.redis_client.exists(full_key)
@@ -118,12 +114,12 @@ class CacheManager:
         except Exception as e:
             logger.warning("Cache exists check failed", key=key, error=str(e))
             return False
-    
+
     async def clear_pattern(self, pattern: str) -> int:
         """Clear keys matching pattern."""
         if not self._connected or not self.redis_client:
             return 0
-        
+
         try:
             full_pattern = f"{settings.cache_prefix}{pattern}"
             keys = await self.redis_client.keys(full_pattern)
@@ -133,17 +129,17 @@ class CacheManager:
         except Exception as e:
             logger.warning("Cache clear pattern failed", pattern=pattern, error=str(e))
             return 0
-    
+
     async def health_check(self) -> dict:
         """Check cache health."""
         try:
             if not self.redis_client:
                 return {"status": "disconnected", "error": "No Redis client"}
-            
+
             start_time = logger.info("Starting cache health check")
             await self.redis_client.ping()
             info = await self.redis_client.info()
-            
+
             return {
                 "status": "healthy",
                 "connected": self._connected,
@@ -152,11 +148,7 @@ class CacheManager:
                 "uptime": info.get("uptime_in_seconds", 0),
             }
         except Exception as e:
-            return {
-                "status": "unhealthy", 
-                "error": str(e),
-                "connected": False
-            }
+            return {"status": "unhealthy", "error": str(e), "connected": False}
 
 
 # Global cache instance

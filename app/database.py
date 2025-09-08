@@ -2,9 +2,10 @@
 import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
+
 import structlog
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 from app.config import settings
 from app.models import Base
@@ -21,7 +22,7 @@ if "sqlite" in settings.database_url:
         connect_args={"check_same_thread": False},
     )
 else:
-    # PostgreSQL configuration  
+    # PostgreSQL configuration
     engine = create_async_engine(
         settings.database_url,
         pool_size=settings.database_pool_size,
@@ -85,6 +86,7 @@ async def check_db_connection() -> bool:
     """Check database connection health."""
     try:
         from sqlalchemy import text
+
         async with get_db_session() as session:
             await session.execute(text("SELECT 1"))
             return True

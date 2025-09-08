@@ -4,32 +4,29 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Depends, Request, Response, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import PlainTextResponse, JSONResponse
-from sqlalchemy.ext.asyncio import AsyncSession
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 import structlog
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
-from app.database import get_db, create_tables, close_db_connection, check_db_connection
 from app.cache import cache
+from app.config import settings
+from app.database import check_db_connection, close_db_connection, create_tables, get_db
+from app.metrics import (
+    api_sync_duration,
+    characters_processed,
+    get_metrics,
+    track_request_metrics,
+    update_business_metrics,
+)
+from app.models import ErrorResponse, FilteredCharacterResponse, HealthCheckResponse
 from app.rick_morty_client import rick_morty_client
 from app.services import character_service
-from app.models import (
-    FilteredCharacterResponse, 
-    HealthCheckResponse, 
-    ErrorResponse
-)
-from app.metrics import (
-    get_metrics, 
-    track_request_metrics, 
-    update_business_metrics,
-    characters_processed,
-    api_sync_duration
-)
+
 # from app.tracing import setup_tracing  # Will add later when needed
 
 # Configure structured logging
@@ -43,7 +40,7 @@ structlog.configure(
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
         structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
@@ -60,8 +57,10 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan management."""
-    logger.info("Starting application", app_name=settings.app_name, version=settings.app_version)
-    
+    logger.info(
+        "Starting application", app_name=settings.app_name, version=settings.app_version
+    )
+
     # Startup
     try:
         # Connect to cache (optional)
@@ -69,22 +68,24 @@ async def lifespan(app: FastAPI):
             await cache.connect()
             logger.info("Cache connected successfully")
         except Exception as e:
-            logger.warning("Cache connection failed, continuing without cache", error=str(e))
-        
+            logger.warning(
+                "Cache connection failed, continuing without cache", error=str(e)
+            )
+
         # Create database tables
         await create_tables()
-        
+
         # Initial data sync (in background)
         asyncio.create_task(initial_data_sync())
-        
+
         logger.info("Application startup completed")
-        
+
     except Exception as e:
         logger.error("Failed to start application", error=str(e))
         raise
-    
+
     yield
-    
+
     # Shutdown
     try:
         await cache.disconnect()
@@ -99,24 +100,28 @@ async def initial_data_sync():
     """Perform initial data synchronization from Rick and Morty API."""
     try:
         logger.info("Starting initial data sync")
-        
+
         # Wait a bit to ensure database is ready
         await asyncio.sleep(5)
-        
+
         from app.database import get_db_session
-        
+
         async with get_db_session() as db:
             start_time = asyncio.get_event_loop().time()
             synced_count = await character_service.sync_characters_from_api(db)
             duration = asyncio.get_event_loop().time() - start_time
-            
+
             # Update metrics
             characters_processed.labels(source="api_sync").inc(synced_count)
             api_sync_duration.observe(duration)
             update_business_metrics(synced_count)
-            
-            logger.info("Initial data sync completed", synced_count=synced_count, duration=duration)
-            
+
+            logger.info(
+                "Initial data sync completed",
+                synced_count=synced_count,
+                duration=duration,
+            )
+
     except Exception as e:
         logger.error("Initial data sync failed", error=str(e))
 
@@ -150,33 +155,35 @@ app.add_middleware(
 async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Health check endpoint with deep health checks.
-    
+
     Checks:
     - Database connectivity
-    - Cache connectivity  
+    - Cache connectivity
     - Rick and Morty API connectivity
     """
     logger.info("Health check requested")
-    
+
     checks = {}
     overall_status = "healthy"
-    
+
     # Database check
     try:
         db_healthy = await check_db_connection()
         checks["database"] = {
             "status": "healthy" if db_healthy else "unhealthy",
-            "message": "Database connection successful" if db_healthy else "Database connection failed"
+            "message": "Database connection successful"
+            if db_healthy
+            else "Database connection failed",
         }
         if not db_healthy:
             overall_status = "unhealthy"
     except Exception as e:
         checks["database"] = {
             "status": "unhealthy",
-            "message": f"Database check failed: {str(e)}"
+            "message": f"Database check failed: {str(e)}",
         }
         overall_status = "unhealthy"
-    
+
     # Cache check
     try:
         cache_status = await cache.health_check()
@@ -186,10 +193,10 @@ async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         checks["cache"] = {
             "status": "unhealthy",
-            "message": f"Cache check failed: {str(e)}"
+            "message": f"Cache check failed: {str(e)}",
         }
         overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
-    
+
     # Rick and Morty API check
     try:
         api_status = await rick_morty_client.health_check()
@@ -199,36 +206,36 @@ async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
     except Exception as e:
         checks["rick_morty_api"] = {
             "status": "unhealthy",
-            "message": f"API check failed: {str(e)}"
+            "message": f"API check failed: {str(e)}",
         }
         overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
-    
+
     # Character count check
     try:
         stats = await character_service.get_stats(db)
         checks["data"] = {
             "status": "healthy",
             "total_characters": stats["total_characters"],
-            "last_sync": stats["last_sync"]
+            "last_sync": stats["last_sync"],
         }
     except Exception as e:
         checks["data"] = {
             "status": "unhealthy",
-            "message": f"Data check failed: {str(e)}"
+            "message": f"Data check failed: {str(e)}",
         }
         overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
-    
+
     response = HealthCheckResponse(
         status=overall_status,
         timestamp=datetime.utcnow(),
         version=settings.app_version,
-        checks=checks
+        checks=checks,
     )
-    
+
     # Set appropriate HTTP status code
     if overall_status == "unhealthy":
         raise HTTPException(status_code=503, detail="Service unhealthy")
-    
+
     return response
 
 
@@ -241,48 +248,50 @@ async def get_characters(
     per_page: int = 20,
     sort: str = "id",
     order: str = "asc",
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get filtered Rick and Morty characters.
-    
+
     Returns characters that match:
     - Species: Human
-    - Status: Alive  
+    - Status: Alive
     - Origin: Earth (any variant)
-    
+
     Query Parameters:
     - page: Page number (default: 1)
     - per_page: Items per page (default: 20, max: 100)
     - sort: Sort field (id, name, created_at)
     - order: Sort order (asc, desc)
     """
-    logger.info("Characters requested", page=page, per_page=per_page, sort=sort, order=order)
-    
+    logger.info(
+        "Characters requested", page=page, per_page=per_page, sort=sort, order=order
+    )
+
     # Validate parameters
     if page < 1:
         raise HTTPException(status_code=400, detail="Page must be >= 1")
-    
+
     if per_page < 1 or per_page > 100:
-        raise HTTPException(status_code=400, detail="Per page must be between 1 and 100")
-    
+        raise HTTPException(
+            status_code=400, detail="Per page must be between 1 and 100"
+        )
+
     if sort not in ["id", "name", "created_at"]:
-        raise HTTPException(status_code=400, detail="Sort must be one of: id, name, created_at")
-    
+        raise HTTPException(
+            status_code=400, detail="Sort must be one of: id, name, created_at"
+        )
+
     if order not in ["asc", "desc"]:
         raise HTTPException(status_code=400, detail="Order must be one of: asc, desc")
-    
+
     try:
         characters, total = await character_service.get_characters(
-            db=db,
-            page=page,
-            per_page=per_page,
-            sort_by=sort,
-            sort_order=order
+            db=db, page=page, per_page=per_page, sort_by=sort, sort_order=order
         )
-        
+
         total_pages = (total + per_page - 1) // per_page
-        
+
         return {
             "characters": [char.model_dump() for char in characters],
             "pagination": {
@@ -291,10 +300,10 @@ async def get_characters(
                 "total": total,
                 "total_pages": total_pages,
                 "has_next": page < total_pages,
-                "has_prev": page > 1
-            }
+                "has_prev": page > 1,
+            },
         }
-        
+
     except Exception as e:
         logger.error("Failed to get characters", error=str(e))
         raise HTTPException(status_code=500, detail="Internal server error")
@@ -304,24 +313,22 @@ async def get_characters(
 @limiter.limit(f"{settings.rate_limit_requests}/{settings.rate_limit_window}seconds")
 @track_request_metrics
 async def get_character(
-    character_id: int,
-    request: Request,
-    db: AsyncSession = Depends(get_db)
+    character_id: int, request: Request, db: AsyncSession = Depends(get_db)
 ):
     """Get a specific character by ID."""
     logger.info("Character requested", character_id=character_id)
-    
+
     if character_id < 1:
         raise HTTPException(status_code=400, detail="Character ID must be >= 1")
-    
+
     try:
         character = await character_service.get_character_by_id(db, character_id)
-        
+
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-        
+
         return character
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -335,7 +342,7 @@ async def get_character(
 async def get_stats(request: Request, db: AsyncSession = Depends(get_db)):
     """Get character statistics."""
     logger.info("Stats requested")
-    
+
     try:
         stats = await character_service.get_stats(db)
         return stats
@@ -350,28 +357,30 @@ async def get_stats(request: Request, db: AsyncSession = Depends(get_db)):
 async def sync_characters(
     request: Request,
     background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """Manually trigger character synchronization from Rick and Morty API."""
     logger.info("Manual sync requested")
-    
+
     async def sync_task():
         try:
             start_time = asyncio.get_event_loop().time()
             synced_count = await character_service.sync_characters_from_api(db)
             duration = asyncio.get_event_loop().time() - start_time
-            
+
             # Update metrics
             characters_processed.labels(source="manual_sync").inc(synced_count)
             api_sync_duration.observe(duration)
             update_business_metrics(synced_count)
-            
-            logger.info("Manual sync completed", synced_count=synced_count, duration=duration)
+
+            logger.info(
+                "Manual sync completed", synced_count=synced_count, duration=duration
+            )
         except Exception as e:
             logger.error("Manual sync failed", error=str(e))
-    
+
     background_tasks.add_task(sync_task)
-    
+
     return {"message": "Synchronization started", "status": "in_progress"}
 
 
@@ -400,12 +409,18 @@ async def rate_limit_handler(request: Request, exc):
 @app.exception_handler(500)
 async def internal_error_handler(request: Request, exc):
     """Custom 500 handler."""
-    logger.error("Internal server error", path=request.url.path, method=request.method, error=str(exc))
+    logger.error(
+        "Internal server error",
+        path=request.url.path,
+        method=request.method,
+        error=str(exc),
+    )
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
         "app.main:app",
         host=settings.host,
