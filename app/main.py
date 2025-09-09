@@ -155,77 +155,28 @@ app.add_middleware(
 @app.get("/healthcheck", response_model=HealthCheckResponse)
 @limiter.limit("10/minute")
 async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
-    """
-    Health check endpoint with deep health checks.
-
-    Checks:
-    - Database connectivity
-    - Cache connectivity
-    - Rick and Morty API connectivity
-    """
+    """Health check endpoint with deep health checks."""
     logger.info("Health check requested")
 
     checks = {}
     overall_status = "healthy"
 
-    # Database check
-    try:
-        db_healthy = await check_db_connection()
-        checks["database"] = {
-            "status": "healthy" if db_healthy else "unhealthy",
-            "message": "Database connection successful"
-            if db_healthy
-            else "Database connection failed",
-        }
-        if not db_healthy:
-            overall_status = "unhealthy"
-    except Exception as e:
-        checks["database"] = {
-            "status": "unhealthy",
-            "message": f"Database check failed: {str(e)}",
-        }
-        overall_status = "unhealthy"
+    # Run checks
+    db_check, db_overall = await _check_database_health()
+    checks["database"] = db_check
+    overall_status = _combine_status(overall_status, db_overall)
 
-    # Cache check
-    try:
-        cache_status = await cache.health_check()
-        checks["cache"] = cache_status
-        if cache_status["status"] != "healthy":
-            overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
-    except Exception as e:
-        checks["cache"] = {
-            "status": "unhealthy",
-            "message": f"Cache check failed: {str(e)}",
-        }
-        overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
+    cache_check, cache_overall = await _check_cache_health()
+    checks["cache"] = cache_check
+    overall_status = _combine_status(overall_status, cache_overall)
 
-    # Rick and Morty API check
-    try:
-        api_status = await rick_morty_client.health_check()
-        checks["rick_morty_api"] = api_status
-        if api_status["status"] != "healthy":
-            overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
-    except Exception as e:
-        checks["rick_morty_api"] = {
-            "status": "unhealthy",
-            "message": f"API check failed: {str(e)}",
-        }
-        overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
+    api_check, api_overall = await _check_api_health()
+    checks["rick_morty_api"] = api_check
+    overall_status = _combine_status(overall_status, api_overall)
 
-    # Character count check
-    try:
-        stats = await character_service.get_stats(db)
-        checks["data"] = {
-            "status": "healthy",
-            "total_characters": stats["total_characters"],
-            "last_sync": stats["last_sync"],
-        }
-    except Exception as e:
-        checks["data"] = {
-            "status": "unhealthy",
-            "message": f"Data check failed: {str(e)}",
-        }
-        overall_status = "degraded" if overall_status == "healthy" else "unhealthy"
+    data_check, data_overall = await _check_data_health(db)
+    checks["data"] = data_check
+    overall_status = _combine_status(overall_status, data_overall)
 
     response = HealthCheckResponse(
         status=overall_status,
@@ -234,11 +185,81 @@ async def healthcheck(request: Request, db: AsyncSession = Depends(get_db)):
         checks=checks,
     )
 
-    # Set appropriate HTTP status code
     if overall_status == "unhealthy":
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
     return response
+
+
+def _combine_status(current: str, incoming: str) -> str:
+    """Combine health statuses, prioritizing 'unhealthy' over 'degraded' over 'healthy'."""
+    order = {"healthy": 0, "degraded": 1, "unhealthy": 2}
+    return current if order[current] >= order[incoming] else incoming
+
+
+async def _check_database_health() -> tuple[dict, str]:
+    """Check database connectivity."""
+    try:
+        db_healthy = await check_db_connection()
+        if db_healthy:
+            return (
+                {"status": "healthy", "message": "Database connection successful"},
+                "healthy",
+            )
+        return (
+            {"status": "unhealthy", "message": "Database connection failed"},
+            "unhealthy",
+        )
+    except Exception as e:
+        return (
+            {"status": "unhealthy", "message": f"Database check failed: {str(e)}"},
+            "unhealthy",
+        )
+
+
+async def _check_cache_health() -> tuple[dict, str]:
+    """Check cache connectivity."""
+    try:
+        cache_status = await cache.health_check()
+        overall = "healthy" if cache_status.get("status") == "healthy" else "degraded"
+        return cache_status, overall
+    except Exception as e:
+        return (
+            {"status": "unhealthy", "message": f"Cache check failed: {str(e)}"},
+            "degraded",
+        )
+
+
+async def _check_api_health() -> tuple[dict, str]:
+    """Check Rick and Morty API health."""
+    try:
+        api_status = await rick_morty_client.health_check()
+        overall = "healthy" if api_status.get("status") == "healthy" else "degraded"
+        return api_status, overall
+    except Exception as e:
+        return (
+            {"status": "unhealthy", "message": f"API check failed: {str(e)}"},
+            "degraded",
+        )
+
+
+async def _check_data_health(db: AsyncSession) -> tuple[dict, str]:
+    """Check application data status from the database."""
+    try:
+        stats = await character_service.get_stats(db)
+        return (
+            {
+                "status": "healthy",
+                "total_characters": stats["total_characters"],
+                "last_sync": stats["last_sync"],
+            },
+            "healthy",
+        )
+    except Exception as e:
+        return (
+            {"status": "unhealthy", "message": f"Data check failed: {str(e)}"},
+            "degraded",
+        )
 
 
 @app.get("/characters", response_model=dict)

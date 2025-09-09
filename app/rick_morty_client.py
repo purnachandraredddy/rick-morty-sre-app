@@ -131,14 +131,13 @@ class RickMortyClient:
         - Status: Alive
         - Origin: Earth (any variant)
         """
-        all_characters = []
+        all_characters: List[CharacterResponse] = []
         page = 1
 
         logger.info("Starting to fetch filtered characters")
 
         while True:
             try:
-                # Get human characters that are alive
                 data = await self.get_characters(
                     page=page, species="Human", status="Alive"
                 )
@@ -147,21 +146,7 @@ class RickMortyClient:
                 if not characters:
                     break
 
-                # Filter by Earth origin (any variant)
-                earth_characters = []
-                for char_data in characters:
-                    origin_name = char_data.get("origin", {}).get("name", "").lower()
-                    if "earth" in origin_name:
-                        try:
-                            character = CharacterResponse(**char_data)
-                            earth_characters.append(character)
-                        except Exception as e:
-                            logger.warning(
-                                "Failed to parse character data",
-                                character_id=char_data.get("id"),
-                                error=str(e),
-                            )
-
+                earth_characters = self._filter_earth_characters(characters)
                 all_characters.extend(earth_characters)
                 logger.info(
                     "Processed page",
@@ -170,19 +155,9 @@ class RickMortyClient:
                     total_characters=len(all_characters),
                 )
 
-                # Check if there's a next page
-                next_page = data.get("info", {}).get("next")
-                if not next_page:
+                next_page_num = self._extract_next_page_number(data, current_page=page)
+                if not next_page_num:
                     break
-
-                # Extract page number from next URL
-                parsed_url = urlparse(next_page)
-                query_params = parse_qs(parsed_url.query)
-                next_page_num = int(query_params.get("page", [0])[0])
-
-                if next_page_num <= page:
-                    break
-
                 page = next_page_num
 
                 # Rate limiting - be nice to the API
@@ -201,6 +176,37 @@ class RickMortyClient:
             "Finished fetching filtered characters", total_count=len(all_characters)
         )
         return all_characters
+
+    def _filter_earth_characters(self, characters: List[Dict]) -> List[CharacterResponse]:
+        """Return only characters whose origin name contains 'earth'."""
+        filtered: List[CharacterResponse] = []
+        for char_data in characters:
+            origin_name = char_data.get("origin", {}).get("name", "").lower()
+            if "earth" in origin_name:
+                try:
+                    filtered.append(CharacterResponse(**char_data))
+                except Exception as e:
+                    logger.warning(
+                        "Failed to parse character data",
+                        character_id=char_data.get("id"),
+                        error=str(e),
+                    )
+        return filtered
+
+    def _extract_next_page_number(self, data: Dict, current_page: int) -> Optional[int]:
+        """Extract next page number from API response, if available and greater than current."""
+        next_link = data.get("info", {}).get("next")
+        if not next_link:
+            return None
+        parsed_url = urlparse(next_link)
+        query_params = parse_qs(parsed_url.query)
+        try:
+            next_page_num = int(query_params.get("page", [0])[0])
+        except (ValueError, TypeError):
+            return None
+        if next_page_num <= current_page:
+            return None
+        return next_page_num
 
     async def health_check(self) -> Dict:
         """Check API health."""
