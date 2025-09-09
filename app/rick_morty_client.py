@@ -177,8 +177,12 @@ class RickMortyClient:
         )
         return all_characters
 
-    def _filter_earth_characters(self, characters: List[Dict]) -> List[CharacterResponse]:
-        """Return only characters whose origin name contains 'earth'."""
+    def _filter_earth_characters(
+        self, characters: List[Dict]
+    ) -> List[CharacterResponse]:
+        """
+        Return only characters whose origin name contains 'earth'.
+        """
         filtered: List[CharacterResponse] = []
         for char_data in characters:
             origin_name = char_data.get("origin", {}).get("name", "").lower()
@@ -193,8 +197,13 @@ class RickMortyClient:
                     )
         return filtered
 
-    def _extract_next_page_number(self, data: Dict, current_page: int) -> Optional[int]:
-        """Extract next page number from API response, if available and greater than current."""
+    def _extract_next_page_number(
+        self, data: Dict, current_page: int
+    ) -> Optional[int]:
+        """
+        Extract next page number from API response,
+        if available and greater than current.
+        """
         next_link = data.get("info", {}).get("next")
         if not next_link:
             return None
